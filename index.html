@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Cat's Social</title>
+
+    <!-- 1. Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 2. Load Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- 3. Load Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Vollkorn:wght@700;800;900&display=swap" rel="stylesheet">
+
+    <!-- 4. Custom Styles (Neobrutalism) -->
+    <style>
+        /* Apply base font and background */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FFFBF0; /* Cream background */
+            color: #000000;
+        }
+
+        /* Custom font for display headings */
+        .font-display {
+            font-family: 'Vollkorn', serif;
+        }
+
+        /* Neobrutalism Card Style */
+        .neo-card {
+            background-color: white;
+            border: 2px solid #000000;
+            box-shadow: 5px 5px 0px #000000;
+            border-radius: 0;
+        }
+
+        /* Neobrutalism Input Style */
+        .neo-input {
+            background-color: #FFFBF0;
+            border: 2px solid #000000;
+            border-radius: 0;
+            padding: 0.75rem;
+            width: 100%;
+            font-size: 1rem;
+        }
+        .neo-input:focus {
+            outline: 2px solid #F0007A; /* Pink focus */
+            box-shadow: none;
+        }
+
+        /* Neobrutalism Button Base Style */
+        .neo-btn {
+            display: inline-block;
+            border: 2px solid #000000;
+            box-shadow: 4px 4px 0px #000000;
+            border-radius: 0;
+            font-weight: 700;
+            padding: 0.75rem 1.5rem;
+            text-align: center;
+            transition: all 0.1s ease-in-out;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .neo-btn:active {
+            box-shadow: none;
+            transform: translate(4px, 4px);
+        }
+
+        /* Button Color Variants */
+        .neo-btn-pink {
+            background-color: #F0007A;
+            color: white;
+        }
+        .neo-btn-pink:hover {
+            background-color: #d6006c;
+        }
+        
+        .neo-btn-blue {
+            background-color: #007BFF;
+            color: white;
+        }
+        .neo-btn-blue:hover {
+            background-color: #006ae0;
+        }
+
+        .neo-btn-white {
+            background-color: white;
+            color: #000000;
+        }
+        .neo-btn-white:hover {
+            background-color: #f0f0f0;
+        }
+
+        /* Header Logo Style */
+        .header-logo {
+            background-color: #F0007A;
+            color: white;
+            border: 2px solid #000000;
+            box-shadow: 3px 3px 0px #000000;
+            padding: 0.5rem 1rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            transform: rotate(-2deg); /* Slight tilt */
+            transition: all 0.1s ease-in-out; /* Add transition for hover */
+        }
+        .header-logo:hover {
+            transform: rotate(-3deg) scale(1.05);
+            box-shadow: 5px 5px 0px #000000;
+        }
+        .header-logo-container {
+            padding: 1rem;
+        }
+
+        /* Custom File Input */
+        .neo-file-input::file-selector-button {
+            @apply neo-btn neo-btn-white text-sm py-2 px-3 mr-4;
+        }
+
+        /* Hide scrollbar */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+
+    <!-- Full-screen Loading Overlay -->
+    <div id="loading-spinner" class="fixed inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-pink-500"></div>
+        <span class="ml-4 text-xl font-bold">Loading...</span>
+    </div>
+
+    <!-- Custom Message Box -->
+    <div id="message-box" class="fixed top-5 right-5 max-w-sm z-50 hidden">
+        <div id="message-content" class="neo-card p-4">
+            <p id="message-text"></p>
+            <button id="message-close" class="font-bold mt-2">Close</button>
+        </div>
+    </div>
+
+    <!-- Main Navigation Bar -->
+    <nav class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b-2 border-black">
+        <div class="max-w-4xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex-shrink-0">
+                    <a href="#" class="header-logo-container">
+                        <span class="header-logo text-sm sm:text-base">🐾 THE CAT'S SOCIAL</span>
+                    </a>
+                </div>
+                <!-- Navigation Links -->
+                <div id="nav-links" class="hidden sm:flex items-center space-x-4">
+                    <!-- Links will be dynamically added here -->
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="max-w-4xl mx-auto p-4 sm:p-8">
+        
+        <!-- ====================================================== -->
+        <!-- PAGE 1: LANDING PAGE                                   -->
+        <!-- ====================================================== -->
+        <section id="page-landing" class="hidden">
+            <div class="text-center mb-16">
+                <span class="inline-block bg-black text-white text-sm font-bold p-2 px-3 mb-4" style="transform: rotate(-3deg);">FOR CATS ONLY!</span>
+                <h1 class="font-display text-5xl sm:text-7xl font-bold mb-4">The Cat's Social</h1>
+                <p class="text-lg max-w-md mx-auto mb-8">A pawsome social network where cats rule! Share photos, make friends, and live your best 9 lives.</p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button id="landing-join-btn" class="neo-btn neo-btn-pink w-full sm:w-auto">JOIN THE MEOW-VEMENT</button>
+                    <button id="landing-browse-btn" class="neo-btn neo-btn-blue w-full sm:w-auto">BROWSE CATS</button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                <!-- Feature Card 1 -->
+                <div class="neo-card p-6">
+                    <div class="neo-btn neo-btn-pink w-14 h-14 flex items-center justify-center text-3xl mb-4 p-0">♡</div>
+                    <h3 class="font-display text-2xl font-bold mb-2">Share & Get Likes</h3>
+                    <p>Post your cutest photos and videos. Watch the likes roll in from fellow felines.</p>
+                </div>
+                <!-- Feature Card 2 -->
+                <div class="neo-card p-6">
+                    <div class="neo-btn neo-btn-blue w-14 h-14 flex items-center justify-center text-3xl mb-4 p-0">✎</div>
+                    <h3 class="font-display text-2xl font-bold mb-2">Meow & Comment</h3>
+                    <p>Express yourself! Leave paw-sitive comments on your favorite posts.</p>
+                </div>
+                <!-- Feature Card 3 -->
+                <div class="neo-card p-6">
+                    <div class="neo-btn neo-btn-white w-14 h-14 flex items-center justify-center text-3xl mb-4 p-0">🐾</div>
+                    <h3 class="font-display text-2xl font-bold mb-2">Follow Friends</h3>
+                    <p>Build your cat crew! Follow other cool cats and grow your fan base.</p>
+                </div>
+            </div>
+
+            <div class="neo-card p-8 sm:p-12 text-center bg-pink-500 text-white">
+                <h2 class="font-display text-4xl sm:text-5xl font-bold mb-6">Ready to Join the Club?</h2>
+                <p class="text-lg mb-8">Sign up now and become part of the coolest cat community on the internet!</p>
+                <button id="landing-get-started-btn" class="neo-btn neo-btn-white w-full sm:w-auto">GET STARTED, MEOW!</button>
+            </div>
+        </section>
+
+        <!-- ====================================================== -->
+        <!-- PAGE 2: AUTH PAGE (SIGN IN / SIGN UP)                  -->
+        <!-- ====================================================== -->
+        <section id="page-auth" class="hidden">
+            <div class="max-w-md mx-auto">
+                <!-- Sign In Form -->
+                <div id="sign-in-form" class="neo-card p-8">
+                    <div class="text-center mb-8">
+                        <div class="inline-block header-logo-container">
+                            <span class="header-logo">🐾 THE CAT'S SOCIAL</span>
+                        </div>
+                    </div>
+                    <h2 class="font-display text-4xl font-bold text-center mb-2">Welcome Back</h2>
+                    <p class="text-center text-gray-600 mb-8">Sign in to your account</p>
+                    <form id="login-form" class="space-y-6">
+                        <div>
+                            <label for="login-email" class="block text-sm font-bold mb-2">EMAIL</label>
+                            <input type="email" id="login-email" class="neo-input" required>
+                        </div>
+                        <div>
+                            <label for="login-password" class="block text-sm font-bold mb-2">PASSWORD</label>
+                            <input type="password" id="login-password" class="neo-input" required>
+                        </div>
+                        <button type="submit" class="neo-btn neo-btn-pink w-full">SIGN IN</button>
+                    </form>
+                    <p class="text-center mt-6">
+                        Don't have an account? <a href="#" id="show-signup-link" class="font-bold text-pink-600 hover:underline">Sign up</a>
+                    </p>
+                </div>
+
+                <!-- Sign Up Form -->
+                <div id="sign-up-form" class="neo-card p-8 hidden">
+                    <div class="text-center mb-8">
+                        <div class="inline-block header-logo-container">
+                            <span class="header-logo">🐾 THE CAT'S SOCIAL</span>
+                        </div>
+                    </div>
+                    <h2 class="font-display text-4xl font-bold text-center mb-2">Join the Club</h2>
+                    <p class="text-center text-gray-600 mb-8">Create your cat's account</p>
+                    <form id="register-form" class="space-y-6">
+                        <div>
+                            <label for="register-catname" class="block text-sm font-bold mb-2">CAT'S NAME</label>
+                            <input type="text" id="register-catname" class="neo-input" required>
+                        </div>
+                        <div>
+                            <label for="register-email" class="block text-sm font-bold mb-2">YOUR EMAIL</label>
+                            <input type="email" id="register-email" class="neo-input" required>
+                        </div>
+                        <div>
+                            <label for="register-password" class="block text-sm font-bold mb-2">PASSWORD</label>
+                            <input type="password" id="register-password" class="neo-input" minlength="6" required>
+                        </div>
+                        <button type="submit" class="neo-btn neo-btn-pink w-full">CREATE ACCOUNT</button>
+                    </form>
+                    <p class="text-center mt-6">
+                        Already have an account? <a href="#" id="show-signin-link" class="font-bold text-pink-600 hover:underline">Sign in</a>
+                    </p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ====================================================== -->
+        <!-- PAGE 3: FEED PAGE (VIEW & CREATE POSTS)                -->
+        <!-- ====================================================== -->
+        <section id="page-feed" class="hidden">
+            <div class="max-w-md mx-auto space-y-8">
+                <!-- Create Post Form -->
+                <div class="neo-card p-6">
+                    <h3 class="font-display text-2xl font-bold mb-4">Share Something Pawesome!</h3>
+                    <form id="create-post-form" class="space-y-4">
+                        <div>
+                            <label for="post-file" class="block text-sm font-bold mb-2">UPLOAD PHOTO/VIDEO</label>
+                            <input type="file" id="post-file" class="neo-input neo-file-input" accept="image/*,video/*" required>
+                            <p class="text-xs text-gray-500 mt-1">Max 10MB. JPG, PNG, GIF, MP4, MOV</p>
+                        </div>
+                        <div>
+                            <label for="post-caption" class="block text-sm font-bold mb-2">CAPTION (OPTIONAL)</label>
+                            <textarea id="post-caption" class="neo-input h-24" placeholder="Tell us about this moment..."></textarea>
+                        </div>
+                        <button type="submit" class="neo-btn neo-btn-pink w-full">POST IT!</button>
+                    </form>
+                </div>
+
+                <!-- Post Feed -->
+                <div id="feed-container" class="space-y-8">
+                    <!-- Posts will be dynamically inserted here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ====================================================== -->
+        <!-- PAGE 4: EDIT PROFILE PAGE                              -->
+        <!-- ====================================================== -->
+        <section id="page-edit-profile" class="hidden">
+            <div class="max-w-md mx-auto">
+                <form id="edit-profile-form" class="neo-card p-8">
+                    <h2 class="font-display text-4xl font-bold mb-8">Edit Your Profile</h2>
+                    <div class="space-y-6">
+                        <div>
+                            <label for="profile-catname" class="block text-sm font-bold mb-2">CAT NAME</label>
+                            <input type="text" id="profile-catname" class="neo-input" required>
+                        </div>
+                        <div>
+                            <label for="profile-bio" class="block text-sm font-bold mb-2">BIO</label>
+                            <textarea id="profile-bio" class="neo-input h-32" placeholder="Tell us about yourself..."></textarea>
+                        </div>
+                        <div>
+                            <label for="profile-avatar" class="block text-sm font-bold mb-2">AVATAR (OPTIONAL)</label>
+                            <div class="flex items-center space-x-4">
+                                <img id="avatar-preview" src="https://placehold.co/64x64/f0f0f0/333?text=?" alt="Avatar Preview" class="w-16 h-16 rounded-full border-2 border-black">
+                                <input type="file" id="profile-avatar" class="neo-input neo-file-input" accept="image/*">
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Upload a new avatar. Max 2MB.</p>
+                        </div>
+                        <button type="submit" class="neo-btn neo-btn-pink w-full">SAVE CHANGES</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- ====================================================== -->
+        <!-- PAGE 5: VIEW PROFILE PAGE                              -->
+        <!-- ====================================================== -->
+        <section id="page-view-profile" class="hidden">
+            <div class="max-w-md mx-auto">
+                <div class="neo-card p-6 mb-8">
+                    <div class="flex items-center mb-4">
+                        <img id="view-profile-avatar" src="" alt="Profile Avatar" class="w-16 h-16 rounded-full border-2 border-black mr-4">
+                        <div>
+                            <h2 id="view-profile-name" class="font-display text-2xl font-bold"></h2>
+                            <p id="view-profile-bio" class="text-gray-600"></p>
+                        </div>
+                    </div>
+                    <button id="back-to-feed-btn" class="neo-btn neo-btn-blue w-full">Back to Feed</button>
+                </div>
+                <div id="view-profile-posts" class="space-y-8">
+                    <!-- User's posts will be displayed here -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center p-8 mt-16 border-t-2 border-black">
+        <p class="text-sm text-gray-600">🐾 Made with love for cats, by cats (probably) 🐾</p>
+    </footer>
+
+
+    <!-- ====================================================== -->
+    <!-- JAVASCRIPT LOGIC                                       -->
+    <!-- ====================================================== -->
+    <script type="module">
+        // 1. SUPABASE CLIENT SETUP
+        const SUPABASE_URL = 'https://yedfqewhsegmhywmwggu.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllZGZxZXdoc2VnbWh5d213Z2d1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3NjA5MjgsImV4cCI6MjA3NzMzNjkyOH0._hhoJa4FKibkPovX4cG795sJxi6sHav6bKUrAikQHhk';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // 2. GLOBAL STATE
+        let currentUser = null;
+        let userProfile = null;
+        let viewedProfileId = null;
+
+        // 3. DOM ELEMENT SELECTORS
+        const elements = {
+            // Pages
+            pageLanding: document.getElementById('page-landing'),
+            pageAuth: document.getElementById('page-auth'),
+            pageFeed: document.getElementById('page-feed'),
+            pageEditProfile: document.getElementById('page-edit-profile'),
+            pageViewProfile: document.getElementById('page-view-profile'),
+
+            // Nav
+            navLinks: document.getElementById('nav-links'),
+
+            // Forms
+            signInForm: document.getElementById('sign-in-form'),
+            signUpForm: document.getElementById('sign-up-form'),
+            loginForm: document.getElementById('login-form'),
+            registerForm: document.getElementById('register-form'),
+            createPostForm: document.getElementById('create-post-form'),
+            editProfileForm: document.getElementById('edit-profile-form'),
+
+            // Form Inputs
+            loginEmail: document.getElementById('login-email'),
+            loginPassword: document.getElementById('login-password'),
+            registerCatName: document.getElementById('register-catname'),
+            registerEmail: document.getElementById('register-email'),
+            registerPassword: document.getElementById('register-password'),
+            postFile: document.getElementById('post-file'),
+            postCaption: document.getElementById('post-caption'),
+            profileCatName: document.getElementById('profile-catname'),
+            profileBio: document.getElementById('profile-bio'),
+            profileAvatar: document.getElementById('profile-avatar'),
+            avatarPreview: document.getElementById('avatar-preview'),
+
+            // Buttons & Links
+            showSignupLink: document.getElementById('show-signup-link'),
+            showSigninLink: document.getElementById('show-signin-link'),
+            landingJoinBtn: document.getElementById('landing-join-btn'),
+            landingBrowseBtn: document.getElementById('landing-browse-btn'),
+            landingGetStartedBtn: document.getElementById('landing-get-started-btn'),
+
+            // Containers
+            feedContainer: document.getElementById('feed-container'),
+            viewProfileAvatar: document.getElementById('view-profile-avatar'),
+            viewProfileName: document.getElementById('view-profile-name'),
+            viewProfileBio: document.getElementById('view-profile-bio'),
+            viewProfilePosts: document.getElementById('view-profile-posts'),
+
+            // Buttons & Links
+            backToFeedBtn: document.getElementById('back-to-feed-btn'),
+
+            // Utility
+            loadingSpinner: document.getElementById('loading-spinner'),
+            messageBox: document.getElementById('message-box'),
+            messageContent: document.getElementById('message-content'),
+            messageText: document.getElementById('message-text'),
+            messageClose: document.getElementById('message-close'),
+        };
+
+        const allPages = [elements.pageLanding, elements.pageAuth, elements.pageFeed, elements.pageEditProfile, elements.pageViewProfile];
+
+        // 4. HELPER FUNCTIONS
+        
+        /** Shows a page and hides all others */
+        function showPage(pageToShow) {
+            allPages.forEach(page => {
+                if (page) page.classList.add('hidden');
+            });
+            if (pageToShow) {
+                pageToShow.classList.remove('hidden');
+            }
+            window.scrollTo(0, 0); // Scroll to top on page change
+        }
+
+        /** Shows the loading spinner */
+        function showLoading() {
+            elements.loadingSpinner.classList.remove('hidden');
+        }
+
+        /** Hides the loading spinner */
+        function hideLoading() {
+            elements.loadingSpinner.classList.add('hidden');
+        }
+
+        /** Shows a custom message */
+        function showMessage(text, isError = false) {
+            elements.messageText.textContent = text;
+            elements.messageContent.classList.toggle('bg-red-100', isError);
+            elements.messageContent.classList.toggle('border-red-500', isError);
+            elements.messageBox.classList.remove('hidden');
+        }
+
+        /** Hides the custom message */
+        elements.messageClose.onclick = () => {
+            elements.messageBox.classList.add('hidden');
+        };
+
+        /** Generates a default avatar URL */
+        function getDefaultAvatar(text) {
+            return `https://placehold.co/100x100/F0007A/FFF?text=${encodeURIComponent(text.charAt(0).toUpperCase())}`;
+        }
+
+        /** Formats time ago */
+        function timeAgo(date) {
+            const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+            let interval = seconds / 31536000;
+            if (interval > 1) return Math.floor(interval) + "y ago";
+            interval = seconds / 2592000;
+            if (interval > 1) return Math.floor(interval) + "mo ago";
+            interval = seconds / 86400;
+            if (interval > 1) return Math.floor(interval) + "d ago";
+            interval = seconds / 3600;
+            if (interval > 1) return Math.floor(interval) + "h ago";
+            interval = seconds / 60;
+            if (interval > 1) return Math.floor(interval) + "m ago";
+            return Math.floor(seconds) + "s ago";
+        }
+
+        /** Updates the navigation links based on auth state */
+        function updateNav() {
+            if (currentUser) {
+                elements.navLinks.innerHTML = `
+                    <button id="nav-feed" class="font-bold hover:text-pink-600">Feed</button>
+                    <button id="nav-profile" class="font-bold hover:text-pink-600">Profile</button>
+                    <button id="nav-signout" class="neo-btn neo-btn-white text-sm py-2 px-3">Sign Out</button>
+                `;
+                document.getElementById('nav-feed').onclick = () => showPage(elements.pageFeed);
+                document.getElementById('nav-profile').onclick = handleShowEditProfile;
+                document.getElementById('nav-signout').onclick = handleSignOut;
+            } else {
+                elements.navLinks.innerHTML = `
+                    <button id="nav-signin" class="font-bold hover:text-pink-600">Sign In</button>
+                    <button id="nav-signup" class="neo-btn neo-btn-pink text-sm py-2 px-3">Sign Up</button>
+                `;
+                document.getElementById('nav-signin').onclick = () => showPage(elements.pageAuth);
+                document.getElementById('nav-signup').onclick = () => {
+                    elements.signInForm.classList.add('hidden');
+                    elements.signUpForm.classList.remove('hidden');
+                    showPage(elements.pageAuth);
+                };
+            }
+        }
+
+        // 5. AUTHENTICATION FUNCTIONS
+
+        /** Handles user sign up */
+        async function handleSignUp(e) {
+            e.preventDefault();
+            showLoading();
+            const catName = elements.registerCatName.value;
+            const email = elements.registerEmail.value;
+            const password = elements.registerPassword.value;
+
+            try {
+                // Pass the cat_name as user metadata
+                // The database trigger will use this to create the profile
+                const { data, error } = await supabase.auth.signUp({ 
+                    email, 
+                    password,
+                    options: {
+                        data: {
+                            cat_name: catName,
+                            avatar_url: getDefaultAvatar(catName) 
+                        }
+                    }
+                });
+                
+                if (error) throw error;
+
+                // The profile is no longer created here.
+                // The Supabase trigger (in supabase_setup.sql) handles it.
+                    
+                showMessage("Success! Please check your email to confirm your account.");
+                elements.registerForm.reset();
+                elements.signUpForm.classList.add('hidden');
+                elements.signInForm.classList.remove('hidden');
+                
+            } catch (error) {
+                console.error("Sign up error:", error.message);
+                showMessage(`Sign up error: ${error.message}`, true);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /** Handles user sign in */
+        async function handleSignIn(e) {
+            e.preventDefault();
+            showLoading();
+            const email = elements.loginEmail.value;
+            const password = elements.loginPassword.value;
+
+            try {
+                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                // Success is handled by onAuthStateChange
+            } catch (error) {
+                console.error("Sign in error:", error.message);
+                showMessage(`Sign in error: ${error.message}`, true);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /** Handles user sign out */
+        async function handleSignOut() {
+            showLoading();
+            await supabase.auth.signOut();
+            currentUser = null;
+            userProfile = null;
+            updateNav();
+            showPage(elements.pageLanding);
+            hideLoading();
+        }
+
+        // 6. PROFILE FUNCTIONS
+
+        /** Fetches and displays a user's profile */
+        async function viewProfile(profileId) {
+            viewedProfileId = profileId;
+            showLoading();
+            try {
+                // Fetch profile data
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', profileId)
+                    .single();
+
+                if (error) throw error;
+
+                // Set the view profile elements
+                elements.viewProfileAvatar.src = profile.avatar_url || getDefaultAvatar(profile.cat_name);
+                elements.viewProfileName.textContent = profile.cat_name;
+                elements.viewProfileBio.textContent = profile.bio || '';
+
+                // Fetch posts
+                await fetchUserPosts(profileId);
+                showPage(elements.pageViewProfile);
+            } catch (error) {
+                console.error("Error viewing profile:", error.message);
+                showMessage("Error loading profile", true);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /** Fetches posts for a specific user */
+        async function fetchUserPosts(profileId) {
+            try {
+                const { data: posts, error } = await supabase
+                    .from('posts')
+                    .select('*')
+                    .eq('cat_id', profileId)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                renderUserPosts(posts);
+            } catch (error) {
+                console.error("Error fetching user posts:", error.message);
+                showMessage("Error loading posts", true);
+            }
+        }
+
+        /** Renders posts for a user profile */
+        function renderUserPosts(posts) {
+            elements.viewProfilePosts.innerHTML = '';
+            if (posts.length === 0) {
+                elements.viewProfilePosts.innerHTML = '<p class="text-center text-gray-500">No posts yet.</p>';
+                return;
+            }
+
+            posts.forEach(post => {
+                const postElement = document.createElement('div');
+                postElement.className = 'neo-card p-4';
+
+                postElement.innerHTML = `
+                    <img src="${post.image_url}" alt="Post" class="w-full h-auto object-cover mb-2">
+                    <p>${post.caption}</p>
+                    <p class="text-xs text-gray-500">${timeAgo(post.created_at)}</p>
+                `;
+                elements.viewProfilePosts.appendChild(postElement);
+            });
+        }
+
+        /** Fetches the current user's profile */
+        async function fetchUserProfile(retryCount = 0) {
+            if (!currentUser) return false; // Return false if no user
+            try {
+                // *** FIX: Querying by 'user_id' to match your schema ***
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('user_id', currentUser.id) // Changed 'id' to 'user_id'
+                    .single();
+                
+                if (error && !data) {
+                    // Handle case where profile trigger hasn't run yet
+                    if (retryCount < 5) { // Increased retries to 5
+                        console.warn(`Profile not found (retry ${retryCount + 1}/5), retrying in 1.5s...`);
+                        await new Promise(res => setTimeout(res, 1500)); // Wait 1.5 sec
+                        return await fetchUserProfile(retryCount + 1); // Await the recursive call
+                    }
+                    // If retries fail, throw the error to be caught below
+                    throw new Error("Profile not found after 5 retries. Please log out and in again.");
+                }
+
+                if (error) throw error; // Throw other errors
+                
+                userProfile = data;
+                return true; // Return true on success
+            } catch (error) {
+                console.error("Error fetching profile:", error.message);
+                // Updated error message
+                showMessage(`Could not fetch your profile. This might be a database security rule issue. Please try logging in again.`, true);
+                return false; // Return false on failure
+            }
+        }
+
+        /** Shows the edit profile page with current data */
+        function handleShowEditProfile() {
+            if (!userProfile) {
+                showMessage("Profile not found. Please wait...", true);
+                return;
+            }
+            elements.profileCatName.value = userProfile.cat_name || '';
+            elements.profileBio.value = userProfile.bio || '';
+            elements.avatarPreview.src = userProfile.avatar_url || getDefaultAvatar(userProfile.cat_name || '?');
+            showPage(elements.pageEditProfile);
+        }
+
+        /** Handles profile form submission */
+        async function handleEditProfileSubmit(e) {
+            e.preventDefault();
+            showLoading();
+
+            const catName = elements.profileCatName.value;
+            const bio = elements.profileBio.value;
+            const avatarFile = elements.profileAvatar.files[0];
+            
+            let avatarUrl = userProfile.avatar_url;
+
+            try {
+                let avatarUrl = userProfile.avatar_url; // Keep old one by default
+
+                // 1. Upload avatar if one is selected
+                if (avatarFile) {
+                    const fileExt = avatarFile.name.split('.').pop();
+                    const fileName = `${Date.now()}.${fileExt}`;
+                    // *** FIX: Path matches your RLS policy (starts with user_id) ***
+                    const filePath = `${currentUser.id}/avatars/${fileName}`;
+
+                    const { error: uploadError } = await supabase.storage
+                        // *** FIX: Use 'cat-posts' bucket ***
+                        .from('cat-posts')
+                        .upload(filePath, avatarFile);
+
+                    if (uploadError) throw uploadError;
+
+                    // Get public URL
+                    const { data: urlData } = supabase.storage
+                        .from('cat-posts')
+                        .getPublicUrl(filePath);
+                    avatarUrl = urlData.publicUrl;
+                }
+
+                // 2. Update profile in database
+                const { data: updatedProfile, error: updateError } = await supabase
+                    .from('profiles')
+                    .update({
+                        cat_name: catName,
+                        bio: bio,
+                        avatar_url: avatarUrl
+                    })
+                    // *** FIX: Use 'user_id' to find the correct row ***
+                    .eq('user_id', currentUser.id)
+                    .select()
+                    .single();
+
+                if (updateError) throw updateError;
+
+                userProfile = updatedProfile; // Update local profile
+                showMessage("Profile updated successfully!");
+                showPage(elements.pageFeed); // Go back to feed
+            } catch (error) {
+                console.error("Error updating profile:", error.message);
+                showMessage(`Error updating profile: ${error.message}`, true);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 7. POST & FEED FUNCTIONS
+
+        /** Handles new post creation */
+        async function handleCreatePost(e) {
+            e.preventDefault();
+            showLoading();
+
+            const caption = elements.postCaption.value;
+            const mediaFile = elements.postFile.files[0];
+
+            if (!mediaFile) {
+                showMessage("Please select a photo or video to post.", true);
+                hideLoading();
+                return;
+            }
+
+            try {
+                // 1. Upload media file
+                const fileExt = mediaFile.name.split('.').pop();
+                const fileName = `${Date.now()}.${fileExt}`;
+                // *** FIX: Path matches your RLS policy (starts with user_id) ***
+                const filePath = `${currentUser.id}/posts/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    // *** FIX: Use 'cat-posts' bucket ***
+                    .from('cat-posts')
+                    .upload(filePath, mediaFile);
+                
+                if (uploadError) throw uploadError;
+
+                // 2. Get public URL
+                const { data: urlData } = supabase.storage
+                    .from('cat-posts')
+                    .getPublicUrl(filePath);
+                const publicURL = urlData.publicUrl;
+
+                // 3. Create post in database
+                // *** FIX: Inserting 'cat_id' (profile.id) to match your schema ***
+                const { error: postError } = await supabase
+                    .from('posts')
+                    .insert({
+                        cat_id: userProfile.id, // Changed from user_id
+                        image_url: publicURL,
+                        caption: caption
+                    });
+                
+                if (postError) throw postError;
+
+                showMessage("Pawesome post created! 😺", false);
+                elements.createPostForm.reset();
+
+                // Refresh feed and go there
+                await fetchFeed();
+                showPage(elements.pageFeed);
+
+            } catch (error) {
+                console.error("Error creating post:", error.message);
+                showMessage(`Error creating post: ${error.message}`, true);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /** Fetches and renders posts (limited for performance) */
+        async function fetchFeed() {
+            if (!currentUser) return;
+            showLoading();
+            try {
+                // *** FIX: Query matches your schema (joins posts.cat_id -> profiles.id) ***
+                // Limit to 50 posts for better performance
+                // Simplified query to avoid loading issues with large nested data
+                const { data: posts, error } = await supabase
+                    .from('posts')
+                    .select(`
+                        *,
+                        profiles ( cat_name, avatar_url )
+                    `)
+                    .order('created_at', { ascending: false })
+                    .limit(50); // Limit posts to improve loading speed
+
+                if (error) throw error;
+
+                renderFeed(posts);
+            } catch (error) {
+                console.error("Error fetching feed:", error.message);
+                showMessage(`Error fetching feed: ${error.message}`, true);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /** Renders an array of post objects into the feed */
+        function renderFeed(posts) {
+            elements.feedContainer.innerHTML = ''; // Clear existing feed
+            if (posts.length === 0) {
+                elements.feedContainer.innerHTML = '<p class="text-center text-gray-500">No posts yet. Be the first!</p>';
+                return;
+            }
+            
+            posts.forEach(post => {
+                const postElement = document.createElement('div');
+                postElement.className = 'neo-card';
+
+                // Temporarily set to 0 since we removed nested queries for performance
+                const likeCount = 0;
+                const commentCount = 0;
+                const isLiked = false;
+
+                const posterName = post.profiles.cat_name || 'A Cat';
+                const posterAvatar = post.profiles.avatar_url || getDefaultAvatar(posterName);
+
+                postElement.innerHTML = `
+                    <!-- Post Header -->
+                    <div class="flex items-center p-4 border-b-2 border-black">
+                        <img src="${posterAvatar}" alt="${posterName}" class="w-10 h-10 rounded-full border-2 border-black mr-3">
+                        <div>
+                            <button data-profile-id="${post.cat_id}" class="profile-link font-bold hover:text-pink-600">${posterName}</button>
+                            <p class="text-xs text-gray-500">${timeAgo(post.created_at)}</p>
+                        </div>
+                    </div>
+
+                    <!-- Post Media -->
+                    <div class="bg-gray-100 border-b-2 border-black">
+                        <img src="${post.image_url}" alt="Post by ${posterName}" class="w-full h-auto object-cover">
+                    </div>
+
+                    <!-- Post Actions & Content -->
+                    <div class="p-4">
+                        <div class="flex items-center space-x-4 mb-3">
+                            <button data-post-id="${post.id}" class="like-btn text-2xl ${isLiked ? 'text-pink-500' : 'text-black'}">
+                                ${isLiked ? '♥' : '♡'}
+                            </button>
+                            <button data-post-id="${post.id}" class="comment-btn text-2xl">✎</button>
+                        </div>
+                        <p class="font-bold mb-2">${likeCount} ${likeCount === 1 ? 'like' : 'likes'}</p>
+                        <p>
+                            <span class="font-bold">${posterName}</span>
+                            <span class="ml-1">${post.caption}</span>
+                        </p>
+                        <div class="comments-section mt-4" data-post-id="${post.id}">
+                            <div class="comments-list mb-3"></div>
+                            <div class="comment-input flex space-x-2">
+                                <input type="text" class="neo-input flex-1 text-sm" placeholder="Add a comment..." maxlength="200">
+                                <button class="add-comment-btn neo-btn neo-btn-pink text-sm py-1 px-3" data-post-id="${post.id}">Post</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                elements.feedContainer.appendChild(postElement);
+            });
+
+            // Add event listeners for new buttons
+            document.querySelectorAll('.like-btn').forEach(btn => {
+                btn.onclick = () => handleLike(btn.dataset.postId, btn);
+            });
+            document.querySelectorAll('.profile-link').forEach(btn => {
+                btn.onclick = () => viewProfile(btn.dataset.profileId);
+            });
+            // TODO: Add comment functionality
+        }
+
+        /** Handles liking/unliking a post */
+        async function handleLike(postId, button) {
+            if (!currentUser) {
+                showMessage("Please sign in to like posts.", true);
+                return;
+            }
+
+            // Optimistic update
+            const isLiked = button.textContent.trim() === '♥';
+            button.textContent = isLiked ? '♡' : '♥';
+            button.classList.toggle('text-pink-500', !isLiked);
+            
+            try {
+                if (isLiked) {
+                    // Unlike
+                    const { error } = await supabase
+                        .from('likes')
+                        .delete()
+                        .match({ user_id: currentUser.id, post_id: postId });
+                    if (error) throw error;
+                } else {
+                    // Like
+                    const { error } = await supabase
+                        .from('likes')
+                        .insert({ user_id: currentUser.id, post_id: postId });
+                    if (error) throw error;
+                }
+                // Refresh just the counts (or eventually, just this post)
+                // For now, let the optimistic update be enough
+            } catch (error) {
+                console.error("Error liking post:", error.message);
+                // Revert optimistic update
+                button.textContent = isLiked ? '♥' : '♡';
+                button.classList.toggle('text-pink-500', isLiked);
+                showMessage("Failed to update like. Please try again.", true);
+            }
+        }
+
+
+        // 8. EVENT LISTENERS & INITIALIZATION
+
+        // Auth form toggles
+        elements.showSignupLink.onclick = (e) => {
+            e.preventDefault();
+            elements.signInForm.classList.add('hidden');
+            elements.signUpForm.classList.remove('hidden');
+        };
+        elements.showSigninLink.onclick = (e) => {
+            e.preventDefault();
+            elements.signUpForm.classList.add('hidden');
+            elements.signInForm.classList.remove('hidden');
+        };
+
+        // Landing page buttons
+        elements.landingJoinBtn.onclick = () => {
+            elements.signInForm.classList.add('hidden');
+            elements.signUpForm.classList.remove('hidden');
+            showPage(elements.pageAuth);
+        };
+        elements.landingGetStartedBtn.onclick = () => {
+            elements.signInForm.classList.add('hidden');
+            elements.signUpForm.classList.remove('hidden');
+            showPage(elements.pageAuth);
+        };
+        elements.landingBrowseBtn.onclick = () => {
+            // If logged in, go to feed. If not, go to sign in.
+            if (currentUser) {
+                showPage(elements.pageFeed);
+            } else {
+                elements.signUpForm.classList.add('hidden');
+                elements.signInForm.classList.remove('hidden');
+                showPage(elements.pageAuth);
+            }
+        };
+
+        // Form Submissions
+        elements.loginForm.onsubmit = handleSignIn;
+        elements.registerForm.onsubmit = handleSignUp;
+        elements.createPostForm.onsubmit = handleCreatePost;
+        elements.editProfileForm.onsubmit = handleEditProfileSubmit;
+
+        // Avatar preview
+        elements.profileAvatar.onchange = () => {
+            const file = elements.profileAvatar.files[0];
+            if (file) {
+                elements.avatarPreview.src = URL.createObjectURL(file);
+            }
+        };
+
+        // Back to feed button
+        elements.backToFeedBtn.onclick = () => showPage(elements.pageFeed);
+
+        // Auth State Change Listener
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            showLoading();
+            if (event === 'SIGNED_OUT') {
+                currentUser = null;
+                userProfile = null;
+                updateNav();
+                showPage(elements.pageLanding);
+            } else if (session) {
+                currentUser = session.user;
+                const profileFetched = await fetchUserProfile(); // Get success/fail status
+                
+                if (profileFetched) {
+                    // Profile found, proceed as normal
+                    updateNav();
+                    await fetchFeed();
+                    showPage(elements.pageFeed);
+                } else {
+                    // Profile not found, even after retries.
+                    // This happens if the DB trigger hasn't run yet.
+                    // Force a sign-out to make them log in again.
+                    // Updated error message
+                    showMessage("We couldn't find your profile. If you just signed up, this is normal. Please log in again. If this persists, there may be a database security rule error.", true);
+                    try {
+                        await supabase.auth.signOut();
+                    } catch (error) {
+                        console.error("Sign out error:", error);
+                        // Force cleanup if sign out fails
+                        currentUser = null;
+                        userProfile = null;
+                        updateNav();
+                        showPage(elements.pageLanding);
+                    }
+                    // The 'SIGNED_OUT' event will fire, which handles cleanup.
+                }
+            }
+            hideLoading();
+        });
+
+        // Initial App Load
+        async function initializeApp() {
+            showLoading();
+            const { data } = await supabase.auth.getSession();
+            if (data.session) {
+                currentUser = data.session.user;
+                const profileFetched = await fetchUserProfile(); // Also check here
+                
+                if (profileFetched) {
+                    // Profile found, proceed as normal
+                    await fetchFeed();
+                    showPage(elements.pageFeed);
+                } else {
+                    // Profile not found, force logout
+                    // Updated error message
+                    showMessage("We couldn't find your profile data. Please log in again. This might be a database security rule issue.", true);
+                    try {
+                        await supabase.auth.signOut();
+                    } catch (error) {
+                        console.error("Sign out error:", error);
+                        // Force cleanup if sign out fails
+                        currentUser = null;
+                        userProfile = null;
+                        updateNav();
+                    }
+                    showPage(elements.pageLanding);
+                }
+            } else {
+                showPage(elements.pageLanding);
+            }
+            updateNav();
+            hideLoading();
+        }
+
+        initializeApp();
+        
+    </script>
+</body>
+</html>
+
+
+
+
+
+
