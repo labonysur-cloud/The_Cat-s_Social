@@ -418,12 +418,23 @@
 
         // 1. SUPABASE CLIENT SETUP
         const SUPABASE_URL = 'https://yedfqewhsegmhywmwggu.supabase.co';
+        // *** REPLACE WITH YOUR ACTUAL PUBLIC ANON KEY FROM SUPABASE DASHBOARD ***
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllZGZxZXdoc2VnbWh5d213Z2d1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3NjA5MjgsImV4cCI6MjA3NzMzNjkyOH0._hhoJa4FKibkPovX4cG795sJxi6sHav6bKUrAikQHhk';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
             auth: {
                 persistSession: true,
                 storage: window.localStorage,
                 storageKey: 'tcs-auth'
+            }
+        });
+
+        // Handle “Still Loading” State
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            if (session) {
+                console.log("Session loaded:", session.user.email);
+            } else {
+                console.log("No active session. Showing auth page.");
+                showPage(elements.pageAuth);
             }
         });
 
@@ -493,13 +504,20 @@
         const allPages = [elements.pageLanding, elements.pageAuth, elements.pageFeed, elements.pageEditProfile, elements.pageViewProfile];
 
         // 4. HELPER FUNCTIONS
-        
+
         // Reusable timeout helper
         function withTimeout(promise, ms = 5000) {
             return Promise.race([
                 promise,
                 new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
             ]);
+        }
+
+        // Check if session is expired
+        function isSessionExpired(session) {
+            if (!session || !session.expires_at) return true;
+            const now = Math.floor(Date.now() / 1000);
+            return session.expires_at < now;
         }
 
         /** Shows a page and hides all others */
@@ -856,25 +874,28 @@
             if (!currentUser) return false; // Return false if no user
             try {
                 // *** FIX: Querying by 'user_id' to match your schema ***
-                const { data, error } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('user_id', currentUser.id) // Changed 'id' to 'user_id'
-                    .single();
-                
+                const { data, error } = await withTimeout(
+                    supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('user_id', currentUser.id) // Changed 'id' to 'user_id'
+                        .single(),
+                    3000
+                );
+
                 if (error && !data) {
                     // Handle case where profile trigger hasn't run yet
-                    if (retryCount < 5) { // Increased retries to 5
-                        console.warn(`Profile not found (retry ${retryCount + 1}/5), retrying in 1.5s...`);
-                        await new Promise(res => setTimeout(res, 1500)); // Wait 1.5 sec
+                    if (retryCount < 2) { // Reduced retries to 2
+                        console.warn(`Profile not found (retry ${retryCount + 1}/2), retrying in 1s...`);
+                        await new Promise(res => setTimeout(res, 1000)); // Wait 1 sec
                         return await fetchUserProfile(retryCount + 1); // Await the recursive call
                     }
                     // If retries fail, throw the error to be caught below
-                    throw new Error("Profile not found after 5 retries. Please log out and in again.");
+                    throw new Error("Profile not found after 2 retries. Please log out and in again.");
                 }
 
                 if (error) throw error; // Throw other errors
-                
+
                 userProfile = data;
                 return true; // Return true on success
             } catch (error) {
@@ -905,8 +926,6 @@
             const catName = elements.profileCatName.value;
             const bio = elements.profileBio.value;
             const avatarFile = elements.profileAvatar.files[0];
-            
-            let avatarUrl = userProfile.avatar_url;
 
             try {
                 let avatarUrl = userProfile.avatar_url; // Keep old one by default
@@ -1291,6 +1310,7 @@
 
         // Auth State Change Listener
         supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log(`Auth event: ${event}`, session);
             showLoading();
             if (event === 'SIGNED_OUT') {
                 currentUser = null;
@@ -1300,7 +1320,7 @@
             } else if (session) {
                 currentUser = session.user;
                 const profileFetched = await fetchUserProfile(); // Get success/fail status
-                
+
                 if (profileFetched) {
                     // Profile found, proceed as normal
                     updateNav();
@@ -1339,10 +1359,10 @@
                 // Treat timeout/errors as no active session and continue to landing
                 console.warn('auth.getSession failed or timed out; continuing without session:', e.message);
             }
-            if (data.session) {
+            if (data.session && !isSessionExpired(data.session)) {
                 currentUser = data.session.user;
                 const profileFetched = await fetchUserProfile(); // Also check here
-                
+
                 if (profileFetched) {
                     // Profile found, proceed as normal
                     await fetchFeed();
@@ -1352,7 +1372,7 @@
                     // Updated error message
                     showMessage("We couldn't find your profile data. Please log in again. This might be a database security rule issue.", true);
                     try {
-                        await supabase.auth.signOut();
+                        await withTimeout(supabase.auth.signOut(), 5000);
                     } catch (error) {
                         console.error("Sign out error:", error);
                         // Force cleanup if sign out fails
@@ -1363,14 +1383,29 @@
                     showPage(elements.pageLanding);
                 }
             } else {
+                // Clear any expired session data
+                if (data.session && isSessionExpired(data.session)) {
+                    console.warn('Session expired, clearing local data');
+                    try {
+                        await withTimeout(supabase.auth.signOut(), 5000);
+                    } catch (e) {
+                        // Force cleanup
+                        currentUser = null;
+                        userProfile = null;
+                        updateNav();
+                    }
+                }
                 showPage(elements.pageLanding);
             }
             updateNav();
             hideLoading();
         }
 
-        initializeApp();
-        
+        // Run initialization after DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeApp();
+        });
+
     </script>
 </body>
 </html>
