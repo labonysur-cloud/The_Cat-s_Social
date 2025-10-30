@@ -8,8 +8,16 @@
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- 2. Load Supabase Client -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- 2. Load Supabase Client (UMD) with fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script>
+        // Fallback to unpkg if jsdelivr fails to provide window.supabase
+        if (!window.supabase) {
+            var s = document.createElement('script');
+            s.src = 'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';
+            document.head.appendChild(s);
+        }
+    </script>
 
     <!-- 3. Load Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -171,7 +179,7 @@
         <!-- ====================================================== -->
         <!-- PAGE 1: LANDING PAGE                                   -->
         <!-- ====================================================== -->
-        <section id="page-landing" class="hidden">
+        <section id="page-landing">
             <div class="text-center mb-16">
                 <span class="inline-block bg-black text-white text-sm font-bold p-2 px-3 mb-4" style="transform: rotate(-3deg);">FOR CATS ONLY!</span>
                 <h1 class="font-display text-5xl sm:text-7xl font-bold mb-4">The Cat's Social</h1>
@@ -343,7 +351,10 @@
                             <p id="view-profile-bio" class="text-gray-600"></p>
                         </div>
                     </div>
-                    <button id="back-to-feed-btn" class="neo-btn neo-btn-blue w-full">Back to Feed</button>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button id="back-to-feed-btn" class="neo-btn neo-btn-blue w-full">Back to Feed</button>
+                        <button id="follow-toggle-btn" class="neo-btn neo-btn-pink w-full hidden">Follow</button>
+                    </div>
                 </div>
                 <div id="view-profile-posts" class="space-y-8">
                     <!-- User's posts will be displayed here -->
@@ -363,10 +374,58 @@
     <!-- JAVASCRIPT LOGIC                                       -->
     <!-- ====================================================== -->
     <script type="module">
+        // Global safety net: show landing and message on unexpected JS errors
+        window.addEventListener('error', (e) => {
+            try {
+                const landing = document.getElementById('page-landing');
+                if (landing) landing.classList.remove('hidden');
+                const spinner = document.getElementById('loading-spinner');
+                if (spinner) spinner.classList.add('hidden');
+                const msgText = document.getElementById('message-text');
+                const msgBox = document.getElementById('message-box');
+                const msgContent = document.getElementById('message-content');
+                if (msgText && msgBox && msgContent) {
+                    msgText.textContent = `A runtime error occurred: ${e.message || 'Unknown error'}`;
+                    msgContent.classList.add('bg-red-100');
+                    msgContent.classList.add('border-red-500');
+                    msgBox.classList.remove('hidden');
+                }
+            } catch (_) {
+                // no-op
+            }
+        });
+
+        // Handle unhandled promise rejections to avoid stuck spinner
+        window.addEventListener('unhandledrejection', (e) => {
+            try {
+                const landing = document.getElementById('page-landing');
+                if (landing) landing.classList.remove('hidden');
+                const spinner = document.getElementById('loading-spinner');
+                if (spinner) spinner.classList.add('hidden');
+                const msgText = document.getElementById('message-text');
+                const msgBox = document.getElementById('message-box');
+                const msgContent = document.getElementById('message-content');
+                if (msgText && msgBox && msgContent) {
+                    msgText.textContent = `A network/auth error occurred: ${(e.reason && e.reason.message) || 'Unknown error'}`;
+                    msgContent.classList.add('bg-red-100');
+                    msgContent.classList.add('border-red-500');
+                    msgBox.classList.remove('hidden');
+                }
+            } catch (_) {
+                // no-op
+            }
+        });
+
         // 1. SUPABASE CLIENT SETUP
         const SUPABASE_URL = 'https://yedfqewhsegmhywmwggu.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllZGZxZXdoc2VnbWh5d213Z2d1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3NjA5MjgsImV4cCI6MjA3NzMzNjkyOH0._hhoJa4FKibkPovX4cG795sJxi6sHav6bKUrAikQHhk';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: {
+                persistSession: true,
+                storage: window.localStorage,
+                storageKey: 'tcs-auth'
+            }
+        });
 
         // 2. GLOBAL STATE
         let currentUser = null;
@@ -435,6 +494,14 @@
 
         // 4. HELPER FUNCTIONS
         
+        // Reusable timeout helper
+        function withTimeout(promise, ms = 5000) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+            ]);
+        }
+
         /** Shows a page and hides all others */
         function showPage(pageToShow) {
             allPages.forEach(page => {
@@ -446,13 +513,64 @@
             window.scrollTo(0, 0); // Scroll to top on page change
         }
 
+        let loadingTimeoutId = null;
+
+        async function runDiagnostics() {
+            const results = [];
+
+            // 1) Supabase JS present
+            results.push(`Supabase JS: ${window.supabase ? 'OK' : 'NOT LOADED'}`);
+
+            // Helper to fetch with timeout
+            const withTimeout = (promise, ms = 5000) => Promise.race([
+                promise,
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+            ]);
+
+            // 2) CDN reachability
+            try {
+                await withTimeout(fetch('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js', { method: 'HEAD', cache: 'no-store' }));
+                results.push('CDN (jsdelivr UMD): OK');
+            } catch (e) {
+                results.push(`CDN (jsdelivr UMD): FAIL (${e.message})`);
+            }
+
+            // 3) Supabase reachability (Auth health). Some projects return 401 for health; treat 200 or 401 as reachable.
+            try {
+                const healthUrl = `${'https://yedfqewhsegmhywmwggu.supabase.co'}/auth/v1/health`;
+                const resp = await withTimeout(fetch(healthUrl, { method: 'GET', cache: 'no-store' }));
+                if (resp.ok || resp.status === 401) {
+                    results.push(`Supabase Auth health: OK (status ${resp.status})`);
+                } else {
+                    results.push(`Supabase Auth health: FAIL (status ${resp.status})`);
+                }
+            } catch (e) {
+                results.push(`Supabase Auth health: FAIL (${e.message})`);
+            }
+
+            return results.join(' | ');
+        }
+
         /** Shows the loading spinner */
         function showLoading() {
             elements.loadingSpinner.classList.remove('hidden');
+            if (loadingTimeoutId) clearTimeout(loadingTimeoutId);
+            // Fail-safe: auto-hide after 8 seconds to prevent overlay lock
+            loadingTimeoutId = setTimeout(() => {
+                if (!elements.loadingSpinner.classList.contains('hidden')) {
+                    elements.loadingSpinner.classList.add('hidden');
+                    runDiagnostics().then((diag) => {
+                        showMessage(`Still loading... Diagnostics: ${diag}`, true);
+                    }).catch(() => {
+                        showMessage('Still loading... Please check your internet connection and try again.', true);
+                    });
+                }
+            }, 8000);
         }
 
         /** Hides the loading spinner */
         function hideLoading() {
+            if (loadingTimeoutId) clearTimeout(loadingTimeoutId);
             elements.loadingSpinner.classList.add('hidden');
         }
 
@@ -565,9 +683,31 @@
             const password = elements.loginPassword.value;
 
             try {
-                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                // Sign in with an explicit timeout
+                const { data, error } = await withTimeout(
+                    supabase.auth.signInWithPassword({ email, password }),
+                    8000
+                );
                 if (error) throw error;
-                // Success is handled by onAuthStateChange
+
+                // Proceed immediately using returned session to avoid hangs
+                const session = data && data.session;
+                if (session && session.user) {
+                    currentUser = session.user;
+                    const profileFetched = await fetchUserProfile();
+                    if (profileFetched) {
+                        updateNav();
+                        await fetchFeed();
+                        showPage(elements.pageFeed);
+                        hideLoading();
+                        return;
+                    }
+                    showMessage("Signed in, but profile not found yet. Please try again in a moment.", true);
+                    await supabase.auth.signOut();
+                } else {
+                    // Fall back to auth listener path
+                    console.warn('Sign in returned no session; relying on auth state change.');
+                }
             } catch (error) {
                 console.error("Sign in error:", error.message);
                 showMessage(`Sign in error: ${error.message}`, true);
@@ -608,6 +748,9 @@
                 elements.viewProfileName.textContent = profile.cat_name;
                 elements.viewProfileBio.textContent = profile.bio || '';
 
+                // Refresh follow button state
+                await refreshFollowState();
+
                 // Fetch posts
                 await fetchUserPosts(profileId);
                 showPage(elements.pageViewProfile);
@@ -616,6 +759,56 @@
                 showMessage("Error loading profile", true);
             } finally {
                 hideLoading();
+            }
+        }
+
+        async function refreshFollowState() {
+            const btn = document.getElementById('follow-toggle-btn');
+            if (!btn) return;
+            if (!currentUser || !viewedProfileId) {
+                btn.classList.add('hidden');
+                return;
+            }
+            // Hide follow button if viewing own profile
+            if (userProfile && userProfile.id === viewedProfileId) {
+                btn.classList.add('hidden');
+                return;
+            }
+            btn.classList.remove('hidden');
+            try {
+                const { data } = await supabase
+                    .from('follows')
+                    .select('follower_id')
+                    .eq('follower_id', currentUser.id)
+                    .eq('following_id', viewedProfileId)
+                    .limit(1);
+                const isFollowing = data && data.length > 0;
+                btn.textContent = isFollowing ? 'Unfollow' : 'Follow';
+                btn.onclick = () => toggleFollow(isFollowing);
+            } catch (_) {
+                btn.textContent = 'Follow';
+            }
+        }
+
+        async function toggleFollow(isFollowing) {
+            const btn = document.getElementById('follow-toggle-btn');
+            if (!currentUser || !viewedProfileId) return;
+            try {
+                if (isFollowing) {
+                    const { error } = await supabase
+                        .from('follows')
+                        .delete()
+                        .match({ follower_id: currentUser.id, following_id: viewedProfileId });
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase
+                        .from('follows')
+                        .insert({ follower_id: currentUser.id, following_id: viewedProfileId });
+                    if (error && error.code !== '23505') throw error;
+                }
+                await refreshFollowState();
+            } catch (e) {
+                showMessage(`Failed to update follow state: ${e.message}`, true);
             }
         }
 
@@ -867,12 +1060,7 @@
             posts.forEach(post => {
                 const postElement = document.createElement('div');
                 postElement.className = 'neo-card';
-
-                // Temporarily set to 0 since we removed nested queries for performance
-                const likeCount = 0;
-                const commentCount = 0;
-                const isLiked = false;
-
+                
                 const posterName = post.profiles.cat_name || 'A Cat';
                 const posterAvatar = post.profiles.avatar_url || getDefaultAvatar(posterName);
 
@@ -894,12 +1082,10 @@
                     <!-- Post Actions & Content -->
                     <div class="p-4">
                         <div class="flex items-center space-x-4 mb-3">
-                            <button data-post-id="${post.id}" class="like-btn text-2xl ${isLiked ? 'text-pink-500' : 'text-black'}">
-                                ${isLiked ? '♥' : '♡'}
-                            </button>
+                            <button data-post-id="${post.id}" class="like-btn text-2xl text-black">♡</button>
                             <button data-post-id="${post.id}" class="comment-btn text-2xl">✎</button>
                         </div>
-                        <p class="font-bold mb-2">${likeCount} ${likeCount === 1 ? 'like' : 'likes'}</p>
+                        <p class="font-bold mb-2"><span class="like-count" data-post-id="${post.id}">0</span> likes</p>
                         <p>
                             <span class="font-bold">${posterName}</span>
                             <span class="ml-1">${post.caption}</span>
@@ -923,7 +1109,36 @@
             document.querySelectorAll('.profile-link').forEach(btn => {
                 btn.onclick = () => viewProfile(btn.dataset.profileId);
             });
-            // TODO: Add comment functionality
+            // Comments: add & load
+            document.querySelectorAll('.add-comment-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    const postId = btn.dataset.postId;
+                    const section = btn.closest('.comments-section');
+                    const input = section.querySelector('input');
+                    const content = input.value.trim();
+                    if (!currentUser) {
+                        showMessage('Please sign in to comment.', true);
+                        return;
+                    }
+                    if (!content) return;
+                    try {
+                        const { error } = await supabase
+                            .from('comments')
+                            .insert({ user_id: currentUser.id, post_id: postId, content });
+                        if (error) throw error;
+                        input.value = '';
+                        await loadComments(postId);
+                    } catch (e) {
+                        showMessage(`Failed to add comment: ${e.message}`, true);
+                    }
+                };
+            });
+
+            // Initial per-post state
+            posts.forEach(async (post) => {
+                await refreshLikeState(post.id);
+                await loadComments(post.id);
+            });
         }
 
         /** Handles liking/unliking a post */
@@ -940,28 +1155,84 @@
             
             try {
                 if (isLiked) {
-                    // Unlike
+                    // Unlike (ignore if already unliked)
                     const { error } = await supabase
                         .from('likes')
                         .delete()
                         .match({ user_id: currentUser.id, post_id: postId });
                     if (error) throw error;
                 } else {
-                    // Like
+                    // Like; ignore duplicate like conflict
                     const { error } = await supabase
                         .from('likes')
                         .insert({ user_id: currentUser.id, post_id: postId });
-                    if (error) throw error;
+                    if (error && error.code !== '23505') { // 23505 = unique_violation
+                        throw error;
+                    }
                 }
-                // Refresh just the counts (or eventually, just this post)
-                // For now, let the optimistic update be enough
+                // Sync latest like count/state
+                await refreshLikeState(postId, button);
             } catch (error) {
-                console.error("Error liking post:", error.message);
+                console.error("Error liking post:", error);
                 // Revert optimistic update
                 button.textContent = isLiked ? '♥' : '♡';
                 button.classList.toggle('text-pink-500', isLiked);
-                showMessage("Failed to update like. Please try again.", true);
+                const hint = (error && error.code === '42P01') ? ' (The likes table may not exist. Please run supabase_setup.sql.)' : '';
+                showMessage(`Failed to update like: ${error.message || 'Unknown error'}${hint}`, true);
             }
+        }
+
+        async function refreshLikeState(postId, buttonEl) {
+            try {
+                const { count } = await supabase
+                    .from('likes')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('post_id', postId);
+                const countEl = document.querySelector(`.like-count[data-post-id="${postId}"]`);
+                if (countEl) countEl.textContent = String(count || 0);
+
+                let isLiked = false;
+                if (currentUser) {
+                    const { data: likedRows } = await supabase
+                        .from('likes')
+                        .select('id')
+                        .eq('post_id', postId)
+                        .eq('user_id', currentUser.id)
+                        .limit(1);
+                    if (likedRows && likedRows.length > 0) isLiked = true;
+                }
+                const btn = buttonEl || document.querySelector(`.like-btn[data-post-id="${postId}"]`);
+                if (btn) {
+                    btn.textContent = isLiked ? '♥' : '♡';
+                    btn.classList.toggle('text-pink-500', isLiked);
+                    btn.classList.toggle('text-black', !isLiked);
+                }
+            } catch (_) {}
+        }
+
+        async function loadComments(postId) {
+            try {
+                const { data: comments } = await supabase
+                    .from('comments')
+                    .select('content, created_at, user_id')
+                    .eq('post_id', postId)
+                    .order('created_at', { ascending: true })
+                    .limit(50);
+                const section = document.querySelector(`.comments-section[data-post-id="${postId}"]`);
+                if (!section) return;
+                const list = section.querySelector('.comments-list');
+                list.innerHTML = '';
+                if (!comments || comments.length === 0) {
+                    list.innerHTML = '<p class="text-sm text-gray-500">No comments yet.</p>';
+                    return;
+                }
+                comments.forEach(c => {
+                    const row = document.createElement('div');
+                    row.className = 'text-sm';
+                    row.textContent = `${timeAgo(c.created_at)}: ${c.content}`;
+                    list.appendChild(row);
+                });
+            } catch (_) {}
         }
 
 
@@ -1060,7 +1331,14 @@
         // Initial App Load
         async function initializeApp() {
             showLoading();
-            const { data } = await supabase.auth.getSession();
+            let data = { session: null };
+            try {
+                const res = await withTimeout(supabase.auth.getSession(), 6000);
+                data = res.data || { session: null };
+            } catch (e) {
+                // Treat timeout/errors as no active session and continue to landing
+                console.warn('auth.getSession failed or timed out; continuing without session:', e.message);
+            }
             if (data.session) {
                 currentUser = data.session.user;
                 const profileFetched = await fetchUserProfile(); // Also check here
